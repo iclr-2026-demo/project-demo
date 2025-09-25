@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Point Prompting: Counterfactual Tracking with Video Diffusion Models</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ================================================================================
+        EASY THEME CUSTOMIZATION
+        - Change the color values below to easily theme the entire website.
+        - The website supports both a light and a dark mode.
+        ================================================================================
+        */
+        :root {
+            /* Light Mode Colors */
+            --bg-primary-light: #ffffff; /* Main background */
+            --bg-secondary-light: #f9fafb; /* Lighter sections, like table backgrounds */
+            --bg-tertiary-light: #f3f4f6; /* Video container, table header */
+            --bg-accent-light: #eff6ff; /* Highlight color for table rows */
+            
+            --text-primary-light: #1f2937; /* Main text color */
+            --text-secondary-light: #374151; /* Subtler text color */
+            --text-muted-light: #4b5563; /* Muted text for subtitles */
+            --text-accent-light: #2563eb; /* Highlight text color */
+
+            --border-color-light: #e5e7eb; /* Border color for tables */
+
+            --slider-handle-bg-light: rgba(255, 255, 255, 0.7);
+            --slider-icon-color-light: #111827;
+        }
+
+        html.dark {
+            /* Dark Mode Colors */
+            --bg-primary-dark: #0b0f1a; /* Main background */
+            --bg-secondary-dark: #111827; /* Lighter sections, like table backgrounds */
+            --bg-tertiary-dark: #1f2937; /* Video container, table header */
+            --bg-accent-dark: #181f2f; /* Highlight color for table rows */
+            
+            --text-primary-dark: #f3f4f6; /* Main text color */
+            --text-secondary-dark: #d1d5db; /* Subtler text color */
+            --text-muted-dark: #9ca3af; /* Muted text for subtitles */
+            --text-accent-dark: #60a5fa; /* Highlight text color */
+
+            --border-color-dark: #374151; /* Border color for tables */
+            
+            --slider-handle-bg-dark: rgba(0, 0, 0, 0.5);
+            --slider-icon-color-dark: #f3f4f6;
+        }
+
+        /* Base Styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary-light);
+            color: var(--text-primary-light);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        html.dark body {
+            background-color: var(--bg-primary-dark);
+            color: var(--text-primary-dark);
+        }
+
+        /* Interactive Slider */
+        .slider-container {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .slider-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            pointer-events: none;
+        }
+        .slider-image.right {
+            clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
+        }
+        .slider-handle {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 4px;
+            height: 100%;
+            background: var(--slider-handle-bg-light);
+            cursor: ew-resize;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+        html.dark .slider-handle {
+            background: var(--slider-handle-bg-dark);
+        }
+        .slider-handle::after {
+            content: '↔';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 32px;
+            height: 32px;
+            background: var(--slider-handle-bg-light);
+            color: var(--slider-icon-color-light);
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        html.dark .slider-handle::after {
+            background: var(--slider-handle-bg-dark);
+            color: var(--slider-icon-color-dark);
+        }
+        /*video {
+            width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+        }*/
+
+        video {
+            width: 100%;
+            height: 100%; /* Make sure height is 100% */
+            object-fit: cover; /* This is the magic property */
+            border-radius: 0.5rem;
+        }
+
+        /* Custom Themed Class Helpers (replaces Tailwind colors) */
+        .themed-bg-secondary { background-color: var(--bg-secondary-light); }
+        .themed-bg-tertiary { background-color: var(--bg-tertiary-light); }
+        .themed-bg-accent { background-color: var(--bg-accent-light); }
+        
+        .themed-text-primary { color: var(--text-primary-light); }
+        .themed-text-secondary { color: var(--text-secondary-light); }
+        .themed-text-muted { color: var(--text-muted-light); }
+        .themed-text-accent { color: var(--text-accent-light); }
+
+        .themed-border { border-color: var(--border-color-light); }
+
+        html.dark .themed-bg-secondary { background-color: var(--bg-secondary-dark); }
+        html.dark .themed-bg-tertiary { background-color: var(--bg-tertiary-dark); }
+        html.dark .themed-bg-accent { background-color: var(--bg-accent-dark); }
+        
+        html.dark .themed-text-primary { color: var(--text-primary-dark); }
+        html.dark .themed-text-secondary { color: var(--text-secondary-dark); }
+        html.dark .themed-text-muted { color: var(--text-muted-dark); }
+        html.dark .themed-text-accent { color: var(--text-accent-dark); }
+
+        html.dark .themed-border { border-color: var(--border-color-dark); }
+    </style>
+    <script>
+        // Tailwind is still used for layout, typography, and spacing.
+        // Colors are now handled by the custom CSS variables above.
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto px-4 py-8 md:py-16 max-w-4xl">
+
+        <header class="text-center mb-12">
+            <h1 class="text-3xl md:text-4xl font-bold mb-2 themed-text-primary">
+                Point Prompting: Counterfactual Tracking with Video Diffusion Models
+            </h1>
+            <p class="text-lg themed-text-muted">Anonymous ICLR 2026 Submission</p>
+        </header>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-bold mb-8 text-center themed-text-primary">Point Propagation</h2>
+            <p class="text-base md:text-lg leading-relaxed themed-text-secondary text-center mt-6 max-w-2xl mx-auto">
+                We mark a query point in the first frame with a colored dot. Then, using SDEdit, we guide the diffusion model to regenerate the video, propagating the dot across subsequent frames, by enhancing the counterfactual signal. <br>
+                The video on the left is the original video, while the video on the right is the video generated by the diffusion model with the point propagation.
+            </p>
+            <div class="grid grid-cols-1 gap-8">
+                <div class="themed-bg-tertiary rounded-lg shadow-lg overflow-hidden">
+                    <video controls autoplay muted loop playsinline>
+                        <source src="videos/clip_wan_1.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div class="themed-bg-tertiary rounded-lg shadow-lg overflow-hidden">
+                    <video controls autoplay muted loop playsinline>
+                        <source src="videos/clip_wan_2.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            </div>
+            
+        </section>
+        
+        <section class="mb-16">
+            <h2 class="text-2xl font-bold mb-8 text-center themed-text-primary">Qualitative Examples</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="themed-bg-tertiary rounded-lg shadow-lg overflow-hidden">
+                    <video controls autoplay muted loop playsinline>
+                        <source src="videos/clip_bike_packing.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div class="themed-bg-tertiary rounded-lg shadow-lg overflow-hidden">
+                    <video controls autoplay muted loop playsinline>
+                        <source src="videos/clip_horse_riding.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div class="themed-bg-tertiary rounded-lg shadow-lg overflow-hidden">
+                    <video controls autoplay muted loop playsinline>
+                        <source src="videos/clip_sailing.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div class="themed-bg-tertiary rounded-lg shadow-lg overflow-hidden">
+                    <video controls autoplay muted loop playsinline>
+                        <source src="videos/clip_shooting.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-bold mb-8 text-center themed-text-primary">Tracking Through Occlusions</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                    <div class="slider-container">
+                        <video class="slider-video left" autoplay muted loop playsinline>
+                            <source src="videos/india_tracks_tails.mp4" type="video/mp4">
+                        </video>
+                        <video class="slider-video right slider-image" autoplay muted loop playsinline>
+                             <source src="videos/india.mp4" type="video/mp4">
+                        </video>
+                        <div class="slider-handle"></div>
+                    </div>
+                </div>
+                 <div>
+                    <div class="slider-container">
+                        <video class="slider-video left" autoplay muted loop playsinline>
+                            <source src="videos/bmx-trees_tracks_tails.mp4" type="video/mp4">
+                        </video>
+                        <video class="slider-video right slider-image" autoplay muted loop playsinline>
+                             <source src="videos/bmx-trees.mp4" type="video/mp4">
+                        </video>
+                        <div class="slider-handle"></div>
+                    </div>
+                </div>
+            </div>
+             <p class="text-sm themed-text-muted text-center mt-4">Drag the slider on the videos to compare our results with the original video.</p>
+        </section>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-bold mb-8 text-center themed-text-primary">Point Propagation with CogVideoX</h2>
+            <div class="grid grid-cols-1 gap-8">
+                <div class="themed-bg-tertiary rounded-lg shadow-lg overflow-hidden">
+                    <video controls autoplay muted loop playsinline>
+                        <source src="videos/clip_cog_1.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div class="themed-bg-tertiary rounded-lg shadow-lg overflow-hidden">
+                    <video controls autoplay muted loop playsinline>
+                        <source src="videos/clip_cog_2.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const sliders = document.querySelectorAll('.slider-container');
+            sliders.forEach(slider => {
+                const handle = slider.querySelector('.slider-handle');
+                const rightImage = slider.querySelector('.slider-image.right');
+                let isDragging = false;
+
+                const startDrag = (e) => {
+                    isDragging = true;
+                    slider.classList.add('dragging');
+                };
+
+                const stopDrag = () => {
+                    isDragging = false;
+                    slider.classList.remove('dragging');
+                };
+
+                const onDrag = (e) => {
+                    if (!isDragging) return;
+                    const rect = slider.getBoundingClientRect();
+                    let x = (e.clientX || e.touches[0].clientX) - rect.left;
+                    x = Math.max(0, Math.min(x, rect.width));
+                    const percent = (x / rect.width) * 100;
+                    handle.style.left = `${percent}%`;
+                    rightImage.style.clipPath = `polygon(${percent}% 0, 100% 0, 100% 100%, ${percent}% 100%)`;
+                };
+
+                handle.addEventListener('mousedown', startDrag);
+                handle.addEventListener('touchstart', startDrag);
+
+                document.addEventListener('mouseup', stopDrag);
+                document.addEventListener('touchend', stopDrag);
+
+                document.addEventListener('mousemove', onDrag);
+                document.addEventListener('touchmove', onDrag);
+            });
+        });
+    </script>
+
+</body>
+</html>
